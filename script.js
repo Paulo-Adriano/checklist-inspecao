@@ -1,101 +1,90 @@
-const form = document.getElementById('form-tarefa');
-const input = document.getElementById('tarefa-input');
-const dataInput = document.getElementById('data-input');
-const imagemInput = document.getElementById('imagem-input');
-const lista = document.getElementById('lista-tarefas');
+// Array para armazenar tarefas
+let tarefas = [];
 
-let tarefas = JSON.parse(localStorage.getItem('tarefas')) || [];
+// Elementos do DOM
+const formTarefa = document.getElementById('form-tarefa');
+const inputTarefa = document.getElementById('input-tarefa');
+const inputData = document.getElementById('input-data');
+const inputImagem = document.getElementById('input-imagem');
+const listaTarefas = document.getElementById('lista-tarefas');
 
-function salvar() {
-  localStorage.setItem('tarefas', JSON.stringify(tarefas));
-}
+// Função para renderizar as tarefas na tela
+function renderizarTarefas() {
+  listaTarefas.innerHTML = '';
 
-function renderizar() {
-  lista.innerHTML = '';
   tarefas.forEach((tarefa, index) => {
     const li = document.createElement('li');
-    li.className = tarefa.concluida ? 'completed' : '';
+    if (tarefa.concluida) li.classList.add('concluida');
 
-    const infoDiv = document.createElement('div');
-    infoDiv.className = 'task-info';
-
+    // Imagem se existir
     if (tarefa.imagem) {
       const img = document.createElement('img');
       img.src = tarefa.imagem;
       img.alt = 'Imagem da tarefa';
-      img.className = 'thumb';
-      infoDiv.appendChild(img);
+      li.appendChild(img);
     }
 
-    const textoSpan = document.createElement('span');
-    textoSpan.textContent = tarefa.texto;
+    // Div com texto + data
+    const divInfo = document.createElement('div');
+    divInfo.classList.add('tarefa-info');
 
-    const dataSpan = document.createElement('span');
-    dataSpan.className = 'task-date';
-    dataSpan.textContent = ` (Data: ${tarefa.data})`;
+    const spanTexto = document.createElement('span');
+    spanTexto.textContent = tarefa.texto;
+    divInfo.appendChild(spanTexto);
 
-    infoDiv.appendChild(textoSpan);
-    infoDiv.appendChild(dataSpan);
+    const spanData = document.createElement('div');
+    spanData.textContent = `Data: ${tarefa.data}`;
+    spanData.classList.add('tarefa-data');
+    divInfo.appendChild(spanData);
 
-    const botoes = document.createElement('div');
-    botoes.className = 'task-buttons';
-    botoes.innerHTML = `
-      <button onclick="concluir(${index})">✔</button>
-      <button onclick="excluir(${index})">🗑</button>
-    `;
+    li.appendChild(divInfo);
 
-    li.appendChild(infoDiv);
-    li.appendChild(botoes);
+    // Checkbox para marcar concluída
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.checked = tarefa.concluida;
+    checkbox.addEventListener('change', () => {
+      tarefas[index].concluida = checkbox.checked;
+      renderizarTarefas();
+    });
 
-    lista.appendChild(li);
+    li.appendChild(checkbox);
+
+    listaTarefas.appendChild(li);
   });
 }
 
-function concluir(index) {
-  tarefas[index].concluida = !tarefas[index].concluida;
-  salvar();
-  renderizar();
-}
-
-function excluir(index) {
-  tarefas.splice(index, 1);
-  salvar();
-  renderizar();
-}
-
-form.addEventListener('submit', (e) => {
+// Ao enviar o formulário, adiciona nova tarefa
+formTarefa.addEventListener('submit', (e) => {
   e.preventDefault();
 
-  const novaTarefa = input.value.trim();
-  const dataTarefa = dataInput.value;
-  const imagemArquivo = imagemInput.files[0];
+  const texto = inputTarefa.value.trim();
+  const data = inputData.value;
+  const imagem = inputImagem.value.trim();
 
-  if (!novaTarefa || !dataTarefa) return;
-
-  if (imagemArquivo) {
-    const reader = new FileReader();
-    reader.onload = function () {
-      adicionarTarefa(novaTarefa, dataTarefa, reader.result);
-    };
-    reader.readAsDataURL(imagemArquivo);
-  } else {
-    adicionarTarefa(novaTarefa, dataTarefa, null);
+  if (!texto || !data) {
+    alert('Por favor, preencha a descrição e a data.');
+    return;
   }
 
-  input.value = '';
-  dataInput.value = '';
-  imagemInput.value = '';
+  tarefas.push({
+    texto,
+    data,
+    imagem: imagem || null,
+    concliuda: false,  // note o erro aqui! vamos corrigir abaixo
+    concluida: false,  // corrigido
+  });
+
+  // limpa inputs
+  inputTarefa.value = '';
+  inputData.value = '';
+  inputImagem.value = '';
+
+  renderizarTarefas();
 });
 
-function adicionarTarefa(texto, data, imagemBase64) {
-  tarefas.push({ texto, data, imagem: imagemBase64, concluida: false });
-  salvar();
-  renderizar();
-}
-
-renderizar();
-
-document.getElementById('btn-whatsapp').addEventListener('click', () => {
+// Botão enviar para WhatsApp
+document.getElementById('btn-whatsapp').addEventListener('click', async () => {
   const feitas = tarefas.filter(t => t.concluida);
   const pendentes = tarefas.filter(t => !t.concluida);
 
@@ -116,9 +105,23 @@ document.getElementById('btn-whatsapp').addEventListener('click', () => {
     });
   }
 
-  const textoCodificado = encodeURIComponent(mensagem);
-  const numeroWhatsApp = '5581987607653'; // Ex: 55 + DDD + número sem traços
+  try {
+    await navigator.clipboard.writeText(mensagem);
+    alert('Mensagem copiada para a área de transferência! Agora abra o WhatsApp e cole para enviar.');
+  } catch (err) {
+    alert('Não foi possível copiar a mensagem automaticamente. Por favor, copie manualmente:\n\n' + mensagem);
+  }
 
-  const link = `https://wa.me/${numeroWhatsApp}?text=${textoCodificado}`;
-  window.open(link, '_blank');
+  // Abre o WhatsApp Web (no desktop) ou app (no celular)
+  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+  if (isMobile) {
+    // tenta abrir o app no celular
+    window.open('whatsapp://send', '_blank');
+  } else {
+    // abre o WhatsApp Web no desktop
+    window.open('https://web.whatsapp.com/', '_blank');
+  }
 });
+
+// Renderiza as tarefas ao carregar a página
+renderizarTarefas();
